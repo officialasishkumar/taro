@@ -99,6 +99,10 @@ export const setKeepScreenOn: typeof Taro.setKeepScreenOn = async (options) => {
       document.addEventListener('visibilitychange', handleVisibilityChange)
       if (!wakeLock) {
         await requestWakeLock()
+        // Note: 复用的申请可能在期间被取消常亮后进入了释放分支，需要在仍处于启用状态时重新申请
+        if (keepScreenOnEnabled && !wakeLock) {
+          await requestWakeLock()
+        }
       }
     } else {
       await disableKeepScreenOn()

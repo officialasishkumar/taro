@@ -123,6 +123,37 @@ describe('setKeepScreenOn', () => {
     expect(sentinels[0].released).toBe(true)
   })
 
+  test('reacquires the wake lock when re-enabled while the shared request is being released', async () => {
+    let grant: () => void = () => {}
+    let finishRelease: () => void = () => {}
+    request.mockImplementationOnce(() => new Promise(resolve => {
+      grant = () => {
+        const sentinel = new MockWakeLockSentinel()
+        sentinel.release.mockImplementationOnce(() => new Promise<void>(done => {
+          finishRelease = () => {
+            sentinel.released = true
+            done()
+          }
+        }))
+        sentinels.push(sentinel)
+        resolve(sentinel)
+      }
+    }))
+
+    const first = setKeepScreenOn({ keepScreenOn: true })
+    await setKeepScreenOn({ keepScreenOn: false })
+    grant()
+    await flushPromises()
+    // 旧申请已进入释放分支，此时重新启用
+    const second = setKeepScreenOn({ keepScreenOn: true })
+    finishRelease()
+    await Promise.all([first, second])
+
+    expect(sentinels).toHaveLength(2)
+    expect(sentinels[0].released).toBe(true)
+    expect(sentinels[1].released).toBe(false)
+  })
+
   test('reuses the in-flight request when the page becomes visible again', async () => {
     let grant: (sentinel: MockWakeLockSentinel) => void = () => {}
     request.mockImplementationOnce(() => new Promise(resolve => {
